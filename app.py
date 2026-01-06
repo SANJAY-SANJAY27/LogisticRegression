@@ -1,57 +1,51 @@
 import streamlit as st
 import pandas as pd
-import numpy as np
+import pickle
 
-from sklearn.linear_model import LogisticRegression
-from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import LabelEncoder
+# Page config
+st.set_page_config(page_title="Titanic Survival Prediction", layout="centered")
 
-st.title("Titanic Survival Prediction 🚢")
-
-# Load dataset
-@st.cache_data
-def load_and_train():
-    df = pd.read_csv("Titanic-Dataset.csv")
-
-    df = df[['Survived', 'Pclass', 'Sex', 'Age', 'SibSp', 'Parch', 'Fare']]
-
-    df['Age'].fillna(df['Age'].median(), inplace=True)
-    df['Fare'].fillna(df['Fare'].median(), inplace=True)
-
-    le = LabelEncoder()
-    df['Sex'] = le.fit_transform(df['Sex'])  # male=1, female=0
-
-    X = df.drop('Survived', axis=1)
-    y = df['Survived']
-
-    X_train, X_test, y_train, y_test = train_test_split(
-        X, y, test_size=0.2, random_state=42
-    )
-
-    model = LogisticRegression(max_iter=1000)
-    model.fit(X_train, y_train)
-
+# Load model
+@st.cache_resource
+def load_model():
+    with open("logistic_titanic_model.pkl", "rb") as file:
+        model = pickle.load(file)
     return model
 
-model = load_and_train()
+model = load_model()
 
-st.success("Model trained successfully ✅")
+# Title
+st.title("🚢 Titanic Survival Prediction")
+st.write("Predict whether a passenger would survive")
 
 # User inputs
 pclass = st.selectbox("Passenger Class", [1, 2, 3])
-sex = st.selectbox("Sex", ["Male", "Female"])
-age = st.number_input("Age", 0.0, 100.0, 25.0)
-sibsp = st.number_input("Siblings / Spouse", 0, 10, 0)
-parch = st.number_input("Parents / Children", 0, 10, 0)
-fare = st.number_input("Fare", 0.0, 600.0, 32.0)
+sex = st.selectbox("Sex", ["male", "female"])
+age = st.number_input("Age", min_value=0, max_value=100, value=25)
+fare = st.number_input("Fare", min_value=0.0, value=32.0)
+embarked = st.selectbox("Embarked Port", ["C", "Q", "S"])
 
-sex = 1 if sex == "Male" else 0
+# Encoding (MUST match training)
+sex_encoded = 1 if sex == "male" else 0
+embarked_map = {"C": 0, "Q": 1, "S": 2}
+embarked_encoded = embarked_map[embarked]
 
-if st.button("Predict"):
-    input_data = np.array([[pclass, sex, age, sibsp, parch, fare]])
-    prediction = model.predict(input_data)
+# Input dataframe
+input_data = pd.DataFrame({
+    "Pclass": [pclass],
+    "Sex": [sex_encoded],
+    "Age": [age],
+    "Fare": [fare],
+    "Embarked": [embarked_encoded]
+})
 
-    if prediction[0] == 1:
-        st.success("✅ Passenger Survived")
+# Predict
+if st.button("Predict Survival"):
+    prediction = model.predict(input_data)[0]
+
+    if prediction == 1:
+        st.success("🎉 Passenger is likely to SURVIVE")
     else:
-        st.error("❌ Passenger Did Not Survive")
+        st.error("❌ Passenger is NOT likely to survive")
+
+
